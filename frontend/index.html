@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>EchoCast - SYNTHESIZE YOUR THOUGHTS</title>
+    <meta name="description"
+        content="EchoCast — AI-powered podcast generator. Enter a topic, get a full podcast with research, script, and two-speaker audio." />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ff00ff",
+                        "secondary": "#00f3ff",
+                        "accent": "#7000ff",
+                        "background": "#0a001a",
+                        "surface": "#1a0033",
+                        "terminal-green": "#00ff41",
+                    },
+                    fontFamily: {
+                        "display": ["Orbitron", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"],
+                        "retro": ["VT323", "monospace"]
+                    },
+                },
+            },
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+        body {
+            @apply bg-background text-secondary font-mono;
+            background-image: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+        }
+    }
+    .scanlines {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+        background-size: 100% 4px;
+        z-index: 100;
+        pointer-events: none;
+    }
+    .grid-bg {
+        background-size: 40px 40px;
+        background-image: 
+            linear-gradient(to right, rgba(112, 0, 255, 0.2) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(112, 0, 255, 0.2) 1px, transparent 1px);
+        perspective: 1000px;
+        transform: rotateX(60deg) translateY(-200px);
+        height: 200vh; width: 200%;
+        position: fixed; top: 0; left: -50%;
+        z-index: -1; opacity: 0.4;
+    }
+    .terminal-glow {
+        box-shadow: 0 0 25px rgba(0, 243, 255, 0.6), inset 0 0 15px rgba(0, 243, 255, 0.4);
+    }
+    .glitch-text {
+        text-shadow: 2px 0 #ff00ff, -2px 0 #00f3ff;
+        animation: glitch-shift 4s infinite;
+    }
+    .pixel-art {
+        image-rendering: pixelated;
+    }
+    #terminal-output::-webkit-scrollbar { width: 8px; }
+    #terminal-output::-webkit-scrollbar-track { background: #0a001a; }
+    #terminal-output::-webkit-scrollbar-thumb { background: #7000ff; border-radius: 0; }
+
+    /* ── Glitch flicker on hero title ── */
+    @keyframes glitch-shift {
+        0%, 100% { text-shadow: 2px 0 #ff00ff, -2px 0 #00f3ff; transform: translate(0); }
+        2%  { text-shadow: -3px 0 #ff00ff, 3px 0 #00f3ff; transform: translate(2px, -1px); }
+        4%  { text-shadow: 2px 0 #ff00ff, -2px 0 #00f3ff; transform: translate(0); }
+        41% { text-shadow: 2px 0 #ff00ff, -2px 0 #00f3ff; transform: translate(0); }
+        42% { text-shadow: -4px 0 #ff00ff, 4px 0 #00f3ff; transform: translate(-3px, 1px); clip-path: inset(20% 0 30% 0); }
+        43% { text-shadow: 3px 0 #ff00ff, -3px 0 #00f3ff; transform: translate(2px, 0); clip-path: inset(50% 0 10% 0); }
+        44% { text-shadow: 2px 0 #ff00ff, -2px 0 #00f3ff; transform: translate(0); clip-path: none; }
+        80% { text-shadow: 2px 0 #ff00ff, -2px 0 #00f3ff; transform: translate(0); }
+        81% { text-shadow: -5px 0 #ff00ff, 5px 0 #00f3ff; transform: translate(4px, -2px); }
+        82% { text-shadow: 2px 0 #ff00ff, -2px 0 #00f3ff; transform: translate(0); }
+    }
+
+    /* ── Neon border flicker on cards ── */
+    @keyframes neon-flicker {
+        0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+        20%, 24%, 55% { opacity: 0.6; }
+    }
+    .neon-flicker {
+        animation: neon-flicker 5s infinite alternate;
+    }
+
+    /* ── Scroll-reveal: elements start hidden, slide up ── */
+    .reveal {
+        opacity: 0;
+        transform: translateY(40px);
+        transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    }
+    .reveal.revealed {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    /* ── Glitch-in variant: elements start offset with chromatic shift ── */
+    .reveal-glitch {
+        opacity: 0;
+        transform: translateX(-20px) skewX(5deg);
+        filter: blur(2px);
+        transition: opacity 0.5s ease-out, transform 0.5s ease-out, filter 0.5s ease-out;
+    }
+    .reveal-glitch.revealed {
+        opacity: 1;
+        transform: translateX(0) skewX(0);
+        filter: blur(0);
+    }
+
+    /* ── CRT jitter on scroll ── */
+    .crt-jitter {
+        animation: crt-jitter 0.15s infinite;
+        animation-play-state: paused;
+    }
+    .crt-jitter.scrolling {
+        animation-play-state: running;
+    }
+    @keyframes crt-jitter {
+        0%  { transform: translate(0, 0); }
+        25% { transform: translate(-1px, 0); }
+        50% { transform: translate(1px, 0); }
+        75% { transform: translate(0, 1px); }
+        100%{ transform: translate(0, 0); }
+    }
+
+    /* ── Terminal cursor blink ── */
+    .cursor-blink {
+        animation: blink-cursor 1s step-end infinite;
+    }
+    @keyframes blink-cursor {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+    }
+</style>
+</head>
+
+<body class="antialiased overflow-x-hidden">
+    <div class="scanlines"></div>
+    <div class="grid-bg"></div>
+    <div class="relative min-h-screen flex flex-col z-10 crt-jitter" id="main-wrapper">
+        <!-- ══════ NAV ══════ -->
+        <nav
+            class="w-full border-b-4 border-primary bg-surface/90 px-6 h-20 flex items-center justify-between sticky top-0 z-50">
+            <div class="flex items-center gap-4">
+                <div
+                    class="w-10 h-10 bg-primary flex items-center justify-center text-background border-2 border-secondary">
+                    <span class="material-symbols-outlined font-bold">memory</span>
+                </div>
+                <span
+                    class="text-2xl font-display font-black tracking-tighter text-primary italic uppercase">EchoCast</span>
+            </div>
+            <div class="hidden md:flex items-center gap-10 font-retro text-2xl">
+                <a class="text-secondary hover:text-white hover:bg-primary px-2 transition-all" href="#features">[
+                    FEATURES ]</a>
+                <a class="text-secondary hover:text-white hover:bg-primary px-2 transition-all" href="#pricing">[
+                    PRICING ]</a>
+                <a class="text-secondary hover:text-white hover:bg-primary px-2 transition-all" href="#generator">[
+                    GENERATE ]</a>
+            </div>
+            <div class="flex items-center gap-6">
+                <button
+                    class="bg-secondary text-background font-display font-bold py-2 px-6 border-b-4 border-r-4 border-accent hover:translate-y-1 hover:translate-x-1 hover:border-b-0 hover:border-r-0 transition-all uppercase tracking-widest"
+                    onclick="document.getElementById('generator').scrollIntoView({behavior:'smooth'})">
+                    INITIALIZE
+                </button>
+            </div>
+        </nav>
+
+        <!-- ══════ HERO ══════ -->
+        <main class="flex-grow flex flex-col">
+            <section class="relative pt-24 pb-20 px-6 flex flex-col items-center justify-center text-center"
+                id="generator">
+                <div
+                    class="bg-accent text-white font-mono text-xs px-4 py-1 mb-8 border-2 border-primary skew-x-12 reveal">
+                    SYSTEM STATUS: READY // NEURAL_LINK_ACTIVE
+                </div>
+                <h1 id="hero-title"
+                    class="text-6xl md:text-8xl font-display font-black mb-6 max-w-5xl leading-none glitch-text tracking-tighter uppercase italic reveal">
+                    SYNTHESIZE <br />
+                    <span class="text-white bg-primary px-4">YOUR THOUGHTS.</span>
+                </h1>
+                <p class="text-xl md:text-2xl text-secondary font-retro max-w-2xl mb-16 uppercase tracking-widest leading-tight reveal"
+                    style="transition-delay:0.15s">
+                    Welcome to the digital frontier. Convert raw data into high-fidelity neural audio streams.
+                </p>
+
+                <!-- ── Input Form ── -->
+                <div class="w-full max-w-4xl relative reveal" style="transition-delay:0.3s">
+                    <div class="absolute -inset-2 bg-primary blur-sm opacity-20"></div>
+                    <div
+                        class="relative bg-black border-4 border-secondary p-4 terminal-glow flex flex-col md:flex-row items-center gap-4">
+                        <div
+                            class="flex-1 flex items-center w-full px-4 border-b-2 md:border-b-0 md:border-r-2 border-secondary/30">
+                            <span class="text-terminal-green font-mono text-xl mr-4 cursor-blink">&gt;_</span>
+                            <input id="topic-input"
+                                class="w-full bg-transparent border-none focus:ring-0 text-terminal-green placeholder-secondary/30 text-xl font-mono uppercase"
+                                placeholder="Enter your podcast topic..." type="text" />
+                        </div>
+                        <button id="generate-btn" onclick="startGeneration()"
+                            class="bg-primary text-white px-10 py-4 font-display font-black text-xl flex items-center gap-3 border-b-4 border-r-4 border-accent hover:bg-purple-700 transition-all uppercase italic disabled:opacity-50 disabled:cursor-not-allowed">
+                            GENERATE
+                            <span class="material-symbols-outlined font-bold">bolt</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── Quick Topics ── -->
+                <div class="mt-12 flex flex-wrap justify-center gap-4 font-retro text-xl">
+                    <span class="text-accent opacity-70">UPLINK_TRENDS:</span>
+                    <button class="text-secondary border border-secondary px-3 hover:bg-secondary hover:text-background"
+                        onclick="setTopic('The future of quantum computing')">[ QUANTUM_CORE ]</button>
+                    <button class="text-secondary border border-secondary px-3 hover:bg-secondary hover:text-background"
+                        onclick="setTopic('Rise of artificial general intelligence')">[ AGI_NET ]</button>
+                    <button class="text-secondary border border-secondary px-3 hover:bg-secondary hover:text-background"
+                        onclick="setTopic('Space colonization and Mars settlements')">[ MARS_STREAM ]</button>
+                </div>
+            </section>
+
+            <!-- ══════ TERMINAL OUTPUT ══════ -->
+            <section id="terminal-section" class="py-12 px-6 max-w-5xl mx-auto w-full hidden">
+                <div class="border-4 border-secondary bg-black p-1">
+                    <div class="bg-surface/80 border-b-2 border-secondary px-4 py-2 flex items-center justify-between">
+                        <span class="font-retro text-xl text-primary uppercase">[ ECHOCAST_TERMINAL ]</span>
+                        <span id="status-badge" class="font-mono text-xs text-terminal-green animate-pulse">●
+                            PROCESSING</span>
+                    </div>
+                    <div id="terminal-output"
+                        class="p-6 font-mono text-sm text-terminal-green h-80 overflow-y-auto space-y-1">
+                    </div>
+                </div>
+
+                <!-- ── Audio Player ── -->
+                <div id="audio-player-section" class="mt-8 hidden">
+                    <div class="border-4 border-primary bg-surface p-6">
+                        <div class="flex items-center gap-4 mb-4">
+                            <button id="play-btn" onclick="togglePlay()"
+                                class="w-14 h-14 bg-primary flex items-center justify-center text-white border-b-4 border-r-4 border-accent hover:translate-y-1 transition-all">
+                                <span class="material-symbols-outlined font-bold text-3xl">play_arrow</span>
+                            </button>
+                            <div class="flex-1 space-y-2">
+                                <div class="h-6 w-full bg-black border-2 border-secondary flex items-center p-1 cursor-pointer"
+                                    onclick="seekAudio(event)">
+                                    <div id="progress-bar" class="h-full bg-secondary transition-all" style="width:0%">
+                                    </div>
+                                </div>
+                                <div class="flex justify-between font-retro text-lg text-secondary">
+                                    <span id="audio-filename">FILE: PODCAST.MP3</span>
+                                    <span id="audio-time">00:00 / 00:00</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-4 mt-4">
+                            <a id="download-link" href="#" download
+                                class="flex-1 py-3 border-4 border-secondary text-secondary font-display font-bold text-center hover:bg-secondary hover:text-black transition-all uppercase italic">
+                                DOWNLOAD_CAST
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════ FEATURES ══════ -->
+            <section class="py-24 px-6 max-w-7xl mx-auto w-full relative" id="features" data-reveal-children>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-0">
+                    <div
+                        class="bg-surface border-4 border-primary p-10 -rotate-2 relative z-20 shadow-[10px_10px_0px_0px_rgba(0,243,255,1)] reveal-glitch neon-flicker">
+                        <span class="material-symbols-outlined text-5xl text-secondary mb-6 block">graphic_eq</span>
+                        <h3 class="text-2xl font-display font-black text-primary mb-4 uppercase italic">Neural Audio
+                        </h3>
+                        <p class="text-secondary/80 font-retro text-xl leading-snug">
+                            Crystalline audio synthesis indistinguishable from biological origin. Two AI voices in
+                            natural conversation.
+                        </p>
+                    </div>
+                    <div class="bg-accent border-4 border-secondary p-10 rotate-1 -mt-8 md:-ml-4 relative z-10 shadow-[10px_10px_0px_0px_rgba(255,0,255,1)] reveal-glitch neon-flicker"
+                        style="transition-delay:0.15s">
+                        <span class="material-symbols-outlined text-5xl text-white mb-6 block">manage_search</span>
+                        <h3 class="text-2xl font-display font-black text-white mb-4 uppercase italic">Deep Research</h3>
+                        <p class="text-white/80 font-retro text-xl leading-snug">
+                            Agentic web crawling powered by Apify. Scrapes and synthesizes data from dozens of real
+                            sources.
+                        </p>
+                    </div>
+                    <div class="bg-black border-4 border-primary p-10 rotate-2 -mt-4 md:-ml-4 relative z-20 shadow-[10px_10px_0px_0px_rgba(112,0,255,1)] reveal-glitch neon-flicker"
+                        style="transition-delay:0.3s">
+                        <span
+                            class="material-symbols-outlined text-5xl text-secondary mb-6 block">settings_input_antenna</span>
+                        <h3 class="text-2xl font-display font-black text-primary mb-4 uppercase italic">Voice Nodes</h3>
+                        <p class="text-secondary/80 font-retro text-xl leading-snug">
+                            ElevenLabs-powered voice synthesis. Host and Guest voices stitched into a seamless podcast
+                            experience.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════ SHOWCASE ══════ -->
+            <section class="py-24 px-6 max-w-7xl mx-auto w-full">
+                <div class="border-8 border-secondary p-1 bg-surface relative reveal">
+                    <div class="flex flex-col lg:flex-row">
+                        <div class="p-10 lg:w-1/2 space-y-8 bg-black/40">
+                            <h2
+                                class="text-4xl md:text-5xl font-display font-black text-primary uppercase italic leading-none">
+                                The Future <br />is Audible.</h2>
+                            <p class="text-secondary text-xl font-retro leading-relaxed uppercase">
+                                Five AI agents work in concert: Orchestrator generates queries, Researcher crawls the
+                                web, Summarizer distills insights, Script Writer crafts dialogue, and Producer renders
+                                audio.
+                            </p>
+                            <div class="border-4 border-accent p-6 bg-surface/50">
+                                <div class="flex items-center gap-4 mb-4">
+                                    <div
+                                        class="w-12 h-12 bg-primary flex items-center justify-center text-white border-b-4 border-r-4 border-accent">
+                                        <span class="material-symbols-outlined font-bold">smart_toy</span>
+                                    </div>
+                                    <div class="flex-1 space-y-2">
+                                        <div
+                                            class="h-6 w-full bg-black border-2 border-secondary flex items-center p-1">
+                                            <div
+                                                class="h-full w-full bg-gradient-to-r from-primary via-secondary to-accent animate-pulse">
+                                            </div>
+                                        </div>
+                                        <div class="flex justify-between font-retro text-lg text-secondary">
+                                            <span>PIPELINE: 5_AGENT_SYSTEM</span>
+                                            <span>GEMINI_3_PRO</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="lg:w-1/2 relative min-h-[400px] border-l-8 border-secondary">
+                            <div class="absolute inset-0 pixel-art bg-center bg-cover opacity-80"
+                                style="background-image: url('/audio_viz.png');"></div>
+                            <div class="absolute inset-0 bg-primary/20 mix-blend-color"></div>
+                            <div class="absolute inset-0 flex items-end gap-1 p-8 opacity-40">
+                                <div class="w-full bg-secondary h-12"></div>
+                                <div class="w-full bg-secondary h-24"></div>
+                                <div class="w-full bg-secondary h-8"></div>
+                                <div class="w-full bg-secondary h-32"></div>
+                                <div class="w-full bg-secondary h-16"></div>
+                                <div class="w-full bg-secondary h-40"></div>
+                                <div class="w-full bg-secondary h-20"></div>
+                            </div>
+                            <div
+                                class="absolute top-4 right-4 bg-black border-2 border-primary p-2 font-mono text-xs text-primary animate-pulse">
+                                [ LIVE_RENDERING ]
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════ PRICING ══════ -->
+            <section class="py-24 px-6 max-w-7xl mx-auto w-full" id="pricing">
+                <div class="text-center mb-16 reveal">
+                    <h2
+                        class="text-5xl font-display font-black text-white italic uppercase tracking-tighter mb-4 glitch-text">
+                        CREDIT PLANS</h2>
+                    <p class="text-secondary font-retro text-2xl uppercase">Purchase your processing cycles.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+                    <div
+                        class="bg-black border-4 border-secondary p-8 flex flex-col relative shadow-[12px_12px_0px_0px_rgba(112,0,255,1)] reveal-glitch">
+                        <div class="mb-8">
+                            <h3 class="text-2xl font-display font-black text-primary uppercase italic">RECRUIT</h3>
+                            <div class="flex items-baseline gap-2 mt-2">
+                                <span class="text-5xl font-display font-black text-white">$00</span>
+                                <span class="text-secondary font-retro text-2xl">/PER_CYCLE</span>
+                            </div>
+                        </div>
+                        <ul class="space-y-4 mb-10 flex-1 font-retro text-xl uppercase">
+                            <li class="flex items-center gap-3"><span class="text-primary">&gt;</span> 5 MINS NEURAL
+                                LINK</li>
+                            <li class="flex items-center gap-3"><span class="text-primary">&gt;</span> BASE VOICE CORES
+                            </li>
+                            <li class="flex items-center gap-3"><span class="text-primary">&gt;</span> RAW MP3 OUTPUT
+                            </li>
+                        </ul>
+                        <button
+                            class="w-full py-4 border-4 border-secondary text-secondary font-display font-bold hover:bg-secondary hover:text-black transition-all uppercase italic">SELECT_PLAN</button>
+                    </div>
+                    <div class="bg-surface border-4 border-primary p-8 flex flex-col relative shadow-[12px_12px_0px_0px_rgba(0,243,255,1)] scale-105 z-20 reveal-glitch"
+                        style="transition-delay:0.15s">
+                        <div
+                            class="absolute -top-6 left-1/2 -translate-x-1/2 bg-primary text-white px-6 py-2 border-4 border-secondary font-display font-black text-sm uppercase italic">
+                            ELITE CHOICE
+                        </div>
+                        <div class="mb-8">
+                            <h3 class="text-2xl font-display font-black text-white uppercase italic">OPERATOR</h3>
+                            <div class="flex items-baseline gap-2 mt-2">
+                                <span class="text-5xl font-display font-black text-white">$29</span>
+                                <span class="text-secondary font-retro text-2xl">/PER_CYCLE</span>
+                            </div>
+                        </div>
+                        <ul class="space-y-4 mb-10 flex-1 font-retro text-xl uppercase">
+                            <li class="flex items-center gap-3"><span class="text-secondary">&gt;</span> 60 MINS NEURAL
+                                LINK</li>
+                            <li class="flex items-center gap-3"><span class="text-secondary">&gt;</span> ELITE VOICE
+                                MATRIX</li>
+                            <li class="flex items-center gap-3"><span class="text-secondary">&gt;</span> PRIORITY
+                                BUFFERING</li>
+                            <li class="flex items-center gap-3"><span class="text-secondary">&gt;</span> NO SYSTEM MARKS
+                            </li>
+                        </ul>
+                        <button
+                            class="w-full py-4 bg-primary text-white font-display font-black text-xl border-b-4 border-r-4 border-accent hover:translate-y-1 hover:translate-x-1 transition-all uppercase italic">EXECUTE</button>
+                    </div>
+                    <div class="bg-black border-4 border-secondary p-8 flex flex-col relative shadow-[12px_12px_0px_0px_rgba(255,0,255,1)] reveal-glitch"
+                        style="transition-delay:0.3s">
+                        <div class="mb-8">
+                            <h3 class="text-2xl font-display font-black text-primary uppercase italic">ARCHITECT</h3>
+                            <div class="flex items-baseline gap-2 mt-2">
+                                <span class="text-5xl font-display font-black text-white">$99</span>
+                                <span class="text-secondary font-retro text-2xl">/PER_CYCLE</span>
+                            </div>
+                        </div>
+                        <ul class="space-y-4 mb-10 flex-1 font-retro text-xl uppercase">
+                            <li class="flex items-center gap-3"><span class="text-primary">&gt;</span> INFINITE LINK
+                            </li>
+                            <li class="flex items-center gap-3"><span class="text-primary">&gt;</span> DNA VOICE CLONING
+                            </li>
+                            <li class="flex items-center gap-3"><span class="text-primary">&gt;</span> NEURAL API ACCESS
+                            </li>
+                            <li class="flex items-center gap-3"><span class="text-primary">&gt;</span> 24/7 SYS_OPS</li>
+                        </ul>
+                        <button
+                            class="w-full py-4 border-4 border-secondary text-secondary font-display font-bold hover:bg-secondary hover:text-black transition-all uppercase italic">CONTACT_ADMIN</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ══════ FOOTER ══════ -->
+        <footer class="border-t-4 border-primary bg-surface py-16">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-10 mb-12">
+                    <div class="flex items-center gap-4">
+                        <div
+                            class="w-8 h-8 bg-primary border-2 border-secondary flex items-center justify-center text-white">
+                            <span class="material-symbols-outlined text-sm">memory</span>
+                        </div>
+                        <span class="text-2xl font-display font-black text-primary italic">ECHOCAST</span>
+                    </div>
+                    <div class="flex gap-10 font-retro text-2xl uppercase tracking-tighter">
+                        <a class="text-secondary hover:text-primary" href="#">X_STREAM</a>
+                        <a class="text-secondary hover:text-primary" href="#">SOURCE_CODE</a>
+                        <a class="text-secondary hover:text-primary" href="#">NODE_COMMS</a>
+                    </div>
+                </div>
+                <div
+                    class="border-t-2 border-secondary/20 pt-8 text-center md:text-left font-mono text-xs uppercase text-accent">
+                    <p>&copy; 2025 ECHOCAST_AI NEURAL SYSTEMS. ALL RIGHTS RESERVED. [ VERSION 2.0.0 ]</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ══════ AUDIO ELEMENT ══════ -->
+    <audio id="audio-element" preload="auto"></audio>
+
+    <!-- ══════ JAVASCRIPT ══════ -->
+    <script>
+        const topicInput = document.getElementById('topic-input');
+        const generateBtn = document.getElementById('generate-btn');
+        const termSection = document.getElementById('terminal-section');
+        const termOutput = document.getElementById('terminal-output');
+        const statusBadge = document.getElementById('status-badge');
+        const playerSection = document.getElementById('audio-player-section');
+        const audioEl = document.getElementById('audio-element');
+        const progressBar = document.getElementById('progress-bar');
+        const audioTime = document.getElementById('audio-time');
+        const audioFilename = document.getElementById('audio-filename');
+        const downloadLink = document.getElementById('download-link');
+        const playBtn = document.getElementById('play-btn');
+
+        /* ─── Quick topic buttons ─── */
+        function setTopic(t) {
+            topicInput.value = t;
+            topicInput.focus();
+        }
+
+        /* ─── Format time ─── */
+        function fmt(s) {
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+
+        /* ─── Audio player controls ─── */
+        let isPlaying = false;
+        function togglePlay() {
+            if (isPlaying) { audioEl.pause(); }
+            else { audioEl.play(); }
+        }
+        audioEl.addEventListener('play', () => {
+            isPlaying = true;
+            playBtn.querySelector('span').textContent = 'pause';
+        });
+        audioEl.addEventListener('pause', () => {
+            isPlaying = false;
+            playBtn.querySelector('span').textContent = 'play_arrow';
+        });
+        audioEl.addEventListener('timeupdate', () => {
+            const pct = (audioEl.currentTime / audioEl.duration) * 100;
+            progressBar.style.width = pct + '%';
+            audioTime.textContent = `${fmt(audioEl.currentTime)} / ${fmt(audioEl.duration || 0)}`;
+        });
+        function seekAudio(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            audioEl.currentTime = pct * audioEl.duration;
+        }
+
+        /* ─── Log a line to the terminal ─── */
+        function logLine(text, cls = 'text-terminal-green') {
+            const el = document.createElement('div');
+            el.className = cls;
+            el.textContent = text;
+            termOutput.appendChild(el);
+            termOutput.scrollTop = termOutput.scrollHeight;
+        }
+
+        /* ─── Start generation ─── */
+        async function startGeneration() {
+            const topic = topicInput.value.trim();
+            if (!topic) {
+                topicInput.focus();
+                topicInput.classList.add('border-primary');
+                setTimeout(() => topicInput.classList.remove('border-primary'), 1000);
+                return;
+            }
+
+            // Show terminal, hide player
+            termSection.classList.remove('hidden');
+            playerSection.classList.add('hidden');
+            termOutput.innerHTML = '';
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<span class="animate-spin material-symbols-outlined">progress_activity</span> PROCESSING...';
+            statusBadge.textContent = '● INITIALIZING';
+            statusBadge.className = 'font-mono text-xs text-terminal-green animate-pulse';
+
+            termSection.scrollIntoView({ behavior: 'smooth' });
+            logLine(`> INITIATING ECHOCAST PIPELINE FOR: "${topic}"`, 'text-primary');
+            logLine('> CONNECTING TO NEURAL NETWORK...', 'text-secondary');
+
+            try {
+                // 1. Start the job
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topic }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to start generation.');
+
+                const jobId = data.job_id;
+                logLine(`> JOB_ID: ${jobId} — PIPELINE ENGAGED`, 'text-secondary');
+
+                // 2. Stream status via SSE
+                const eventSource = new EventSource(`/api/status/${jobId}`);
+                eventSource.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'log') {
+                        logLine(msg.message);
+                    } else if (msg.type === 'complete') {
+                        eventSource.close();
+                        if (msg.status === 'done' && msg.result) {
+                            logLine('');
+                            logLine('═══════════════════════════════════════════', 'text-primary');
+                            logLine(`  🎉  PODCAST GENERATION COMPLETE`, 'text-primary');
+                            logLine('═══════════════════════════════════════════', 'text-primary');
+                            statusBadge.textContent = '● COMPLETE';
+                            statusBadge.className = 'font-mono text-xs text-primary';
+
+                            // Show audio player
+                            const audioUrl = `/api/audio/${msg.result}`;
+                            audioEl.src = audioUrl;
+                            audioFilename.textContent = `FILE: ${msg.result.toUpperCase()}`;
+                            downloadLink.href = audioUrl;
+                            playerSection.classList.remove('hidden');
+                        } else {
+                            logLine(`> ERROR: ${msg.error || 'Unknown failure'}`, 'text-red-500');
+                            statusBadge.textContent = '● ERROR';
+                            statusBadge.className = 'font-mono text-xs text-red-500';
+                        }
+                        generateBtn.disabled = false;
+                        generateBtn.innerHTML = 'GENERATE <span class="material-symbols-outlined font-bold">bolt</span>';
+                    }
+                };
+                eventSource.onerror = () => {
+                    logLine('> CONNECTION LOST — RETRYING...', 'text-yellow-400');
+                };
+            } catch (err) {
+                logLine(`> FATAL ERROR: ${err.message}`, 'text-red-500');
+                statusBadge.textContent = '● ERROR';
+                statusBadge.className = 'font-mono text-xs text-red-500';
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = 'GENERATE <span class="material-symbols-outlined font-bold">bolt</span>';
+            }
+        }
+
+        /* ─── Allow Enter key to trigger generation ─── */
+        topicInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') startGeneration();
+        });
+
+        /* ═══════════════════════════════════════════════════════════
+           CYBERPUNK ANIMATIONS
+           ═══════════════════════════════════════════════════════════ */
+
+        /* ─── Scroll-triggered reveals via IntersectionObserver ─── */
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('revealed');
+                }
+            });
+        }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+        document.querySelectorAll('.reveal, .reveal-glitch').forEach(el => {
+            revealObserver.observe(el);
+        });
+
+        /* ─── CRT micro-jitter while scrolling ─── */
+        let scrollTimer = null;
+        const mainWrapper = document.getElementById('main-wrapper');
+        window.addEventListener('scroll', () => {
+            mainWrapper.classList.add('scrolling');
+            clearTimeout(scrollTimer);
+            scrollTimer = setTimeout(() => {
+                mainWrapper.classList.remove('scrolling');
+            }, 150);
+        }, { passive: true });
+
+        /* ─── Chromatic aberration intensify on scroll ─── */
+        const heroTitle = document.getElementById('hero-title');
+        window.addEventListener('scroll', () => {
+            const scrollY = window.scrollY;
+            const intensity = Math.min(scrollY / 200, 8);
+            if (heroTitle) {
+                heroTitle.style.textShadow = `${intensity}px 0 #ff00ff, ${-intensity}px 0 #00f3ff`;
+            }
+        }, { passive: true });
+    </script>
+
+</body>
+
+</html>
