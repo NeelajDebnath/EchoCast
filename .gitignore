@@ -1,0 +1,27 @@
+# ── Secrets ───────────────────────────────
+.env
+
+# ── Python ───────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# ── Output ───────────────────────────────
+output/
+
+# ── IDE / OS ─────────────────────────────
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
+
+# ── Temp design files ────────────────────
+stitch_design.html
+stitch_screenshot.png
