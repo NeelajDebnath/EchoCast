@@ -51,7 +51,7 @@ EchoCast uses a **5-agent pipeline** where each stage is managed by a dedicated 
 
 ### Prerequisites
 
-- **Python 3.12+**
+- **Python 3.13+**
 - **FFmpeg** (for MP3 export)
   ```bash
   # Windows
